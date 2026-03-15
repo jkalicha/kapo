@@ -163,6 +163,8 @@ model Listing {
   acceptsTrade Boolean @default(false)
   hasFinancing Boolean @default(false)
 
+  views Int @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -199,6 +201,7 @@ model Lead {
   buyerPhone String
   message    String?
   read       Boolean       @default(false)
+  sanitized  Boolean       @default(false)
   createdAt  DateTime      @default(now())
   listing    Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
   seller     SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)

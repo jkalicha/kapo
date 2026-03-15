@@ -17,6 +17,7 @@ export interface ListingFilters {
   featured?: boolean
   acceptsTrade?: boolean
   hasFinancing?: boolean
+  sellerId?: string
   orden?: Orden
   page?: number
   pageSize?: number
@@ -49,6 +50,7 @@ export async function getListings(filters: ListingFilters = {}): Promise<Paginat
     featured,
     acceptsTrade,
     hasFinancing,
+    sellerId,
     orden,
     page = 1,
     pageSize = 12,
@@ -75,6 +77,7 @@ export async function getListings(filters: ListingFilters = {}): Promise<Paginat
       ...(featured !== undefined && { featured }),
       ...(acceptsTrade !== undefined && { acceptsTrade }),
       ...(hasFinancing !== undefined && { hasFinancing }),
+      ...(sellerId && { sellerId }),
     }
 
     const orderBy = orden
@@ -110,12 +113,15 @@ export async function getListings(filters: ListingFilters = {}): Promise<Paginat
 export async function getListingById(id: string): Promise<ListingWithSeller | null> {
   try {
     const listing = await db.listing.findUnique({
-      where: { id, status: ListingStatus.ACTIVE },
+      where: { id },
       include: {
-        images: true,
+        images: { orderBy: { order: 'asc' } },
         seller: { include: { user: true } },
       },
     })
+    // Only surface ACTIVE or SOLD listings publicly
+    if (!listing) return null
+    if (listing.status !== 'ACTIVE' && listing.status !== 'SOLD') return null
     return listing
   } catch (err) {
     console.error('[getListingById] error:', err)
@@ -152,6 +158,42 @@ export async function getListingsBySeller(sellerId: string): Promise<ListingWith
     return listings
   } catch (err) {
     console.error('[getListingsBySeller] error:', err)
+    return []
+  }
+}
+
+export async function getSimilarListings(
+  listingId: string,
+  brand: string,
+  price: number,
+  limit = 4,
+): Promise<ListingCard[]> {
+  try {
+    const listings = await db.listing.findMany({
+      where: {
+        status: ListingStatus.ACTIVE,
+        id: { not: listingId },
+        OR: [
+          { brand: { equals: brand, mode: 'insensitive' as const } },
+          {
+            price: {
+              gte: Math.floor(price * 0.75),
+              lte: Math.ceil(price * 1.25),
+            },
+          },
+        ],
+      },
+      include: {
+        images: { take: 1, orderBy: { order: 'asc' } },
+        seller: true,
+        _count: { select: { leads: true } },
+      },
+      orderBy: [{ featured: 'desc' as const }, { createdAt: 'desc' as const }],
+      take: limit,
+    })
+    return listings as ListingCard[]
+  } catch (err) {
+    console.error('[getSimilarListings] error:', err)
     return []
   }
 }
