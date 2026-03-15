@@ -6,14 +6,61 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  BUYER
+  SELLER
+  ADMIN
+}
+
+enum SellerType {
+  DEALERSHIP
+  PRIVATE
+}
+
+enum ListingStatus {
+  DRAFT
+  ACTIVE
+  SOLD
+  PAUSED
+  FLAGGED
+}
+
+enum BoostStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum Currency {
+  USD
+  UYU
+}
+
+enum FuelType {
+  NAFTA
+  DIESEL
+  HIBRIDO
+  ELECTRICO
+  GNC
+}
+
+enum Transmission {
+  MANUAL
+  AUTOMATICO
+}
+
 model User {
-  id            String    @id
-  name          String
-  email         String    @unique
-  emailVerified Boolean
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  role          Role          @default(BUYER)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  sellerProfile SellerProfile?
+
+  // Better Auth required fields
+  emailVerified Boolean       @default(false)
   image         String?
-  createdAt     DateTime
-  updatedAt     DateTime
   sessions      Session[]
   accounts      Account[]
 
@@ -21,45 +68,158 @@ model User {
 }
 
 model Session {
-  id        String   @id
-  expiresAt DateTime
+  id        String   @id @default(cuid())
+  userId    String
   token     String   @unique
-  createdAt DateTime
-  updatedAt DateTime
+  expiresAt DateTime
   ipAddress String?
   userAgent String?
-  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("session")
 }
 
 model Account {
-  id                    String    @id
-  accountId             String
-  providerId            String
-  userId                String
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
+  id                   String    @id @default(cuid())
+  userId               String
+  accountId            String
+  providerId           String
+  accessToken          String?
+  refreshToken         String?
   accessTokenExpiresAt  DateTime?
   refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  createdAt             DateTime
-  updatedAt             DateTime
+  scope                String?
+  idToken              String?
+  password             String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("account")
 }
 
 model Verification {
-  id         String    @id
+  id         String   @id @default(cuid())
   identifier String
   value      String
   expiresAt  DateTime
-  createdAt  DateTime?
-  updatedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@map("verification")
+}
+
+model SellerProfile {
+  id           String          @id @default(cuid())
+  userId       String          @unique
+  type         SellerType
+  businessName String?
+  phone        String?
+  whatsapp     String?
+  city         String
+  department   String
+  description  String?
+  website      String?
+  logoUrl      String?
+  verified     Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listings     Listing[]
+  leads        Lead[]
+  boosts       FeaturedBoost[]
+}
+
+model Listing {
+  id           String        @id @default(cuid())
+  sellerId     String
+  status       ListingStatus @default(ACTIVE)
+
+  // Vehicle data
+  brand        String
+  model        String
+  version      String?
+  year         Int
+  km           Int
+  price        Int
+  currency     Currency      @default(USD)
+  fuel         FuelType
+  transmission Transmission
+  color        String?
+  doors        Int?
+  description  String?
+
+  // Location
+  city         String
+  department   String
+
+  // Featured
+  featured      Boolean   @default(false)
+  featuredUntil DateTime?
+
+  // Flags
+  acceptsTrade Boolean @default(false)
+  hasFinancing Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  seller SellerProfile   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  images ListingImage[]
+  leads  Lead[]
+  boosts FeaturedBoost[]
+
+  @@index([status])
+  @@index([brand])
+  @@index([year])
+  @@index([price])
+  @@index([featured])
+  @@index([createdAt])
+}
+
+model ListingImage {
+  id        String   @id @default(cuid())
+  listingId String
+  url       String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+}
+
+model Lead {
+  id         String        @id @default(cuid())
+  listingId  String
+  sellerId   String
+  buyerName  String
+  buyerEmail String?
+  buyerPhone String
+  message    String?
+  read       Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  listing    Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  seller     SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId])
+  @@index([listingId])
+  @@index([createdAt])
+}
+
+model FeaturedBoost {
+  id        String        @id @default(cuid())
+  listingId String
+  sellerId  String
+  days      Int
+  status    BoostStatus   @default(ACTIVE)
+  startAt   DateTime      @default(now())
+  endAt     DateTime
+  createdAt DateTime      @default(now())
+  listing   Listing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  seller    SellerProfile @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@index([listingId])
+  @@index([endAt])
 }
