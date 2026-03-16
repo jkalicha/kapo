@@ -6,6 +6,5 @@ export async function register() {
     neonConfig.pipelineTLS = false
     neonConfig.pipelineConnect = false
     neonConfig.forceDisablePgSSL = true
-    console.log('[instrumentation] Neon local WS proxy configured:', process.env.LOCAL_DB_WS_PROXY)
   }
 }
